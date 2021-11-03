@@ -78,7 +78,7 @@ function search_binaries() {
 # Show menu with SUID binaries to select
 function display_menu() {
 	clear
-	echo -e "${YELLOW}\nSUID Binaries\n${NC}"
+	echo -e "${YELLOW}\n[*] SUID Binaries\n${NC}"
 
 	declare -i index=1
 	for binary in ${exploitable_binaries[@]}; do
@@ -86,8 +86,12 @@ function display_menu() {
 		let index+=1
 	done
 
-	echo -ne "${LIGHTBLUE}\nSelect an option (1-${#exploitable_binaries[@]}): ${NC}"
-	read user_input
+	while
+		echo -ne "${LIGHTBLUE}\nSelect an option (1-${#exploitable_binaries[@]}): ${NC}"
+		read user_input
+		(( $user_input < 1 || $user_input > ${#exploitable_binaries[@]} ))
+	do true; done
+
 	let user_input-=1
 
 	bin_index=$user_input
@@ -105,12 +109,24 @@ function request_bin_info() {
 	
 	curl -s $url -X GET > output.html
 
-	if test -f output.html; then
-		html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2
-	else
-		echo -e "${LIGHTRED}\n[!] HTML file not found (output.html)\n${NC}"
+	if test ! -f output.html; then
+		echo -e "${LIGHTRED}\n[!] HTML file not found (output.html), exiting...\n${NC}"
 		exit 1
 	fi
+}
+
+# Get description and command for SUID binary exploitation
+function extract_html_info() {
+	
+	description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -B 50 | sed '/*/d')
+	commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -A 50 | sed 's/*//')
+
+	echo -e "${YELLOW}\n[*] Description${NC}"
+	echo -e "${LIGHTBLUE}\n$description${NC}"
+	echo -e "${YELLOW}\n[*] Commands${NC}"
+	echo -e "${LIGHTPURPLE}\n$commands${NC}"
+	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
+	read press_enter
 }
 
 # Main function
@@ -123,7 +139,8 @@ function main() {
 	check_dependencies
 	search_binaries
 	display_menu
-	request_bin_info $gtfo_url	
+	request_bin_info $gtfo_url
+	extract_html_info	
 	rm output.html 2> /dev/null
 }
 
