@@ -2,6 +2,10 @@
 #
 # Author: alb3rtov
 #
+# Descrition:
+# This script allows you to find SUID binaries and check if one of them 
+# can be used to escalate or mantain elevated privileges in a iteractive way.
+#
 
 # Colors ANSI escape codes
 DARKGRAY='\033[1;30m'
