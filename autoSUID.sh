@@ -53,7 +53,7 @@ function check_dependencies() {
 
 # Search and compare GTFO binaries with current SUID binaries
 function search_binaries() {
-	echo -e "${YELLOW}\n[*] Searching for SUID binaries in the system...\n${NC}"
+	echo -e "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system...\n${NC}"
 
 	declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
 	
@@ -70,7 +70,7 @@ function search_binaries() {
 	done
 	
 	if [[ ${#exploitable_binaries[@]} -eq 0 ]]; then
-		echo -e "${YELLOW}\n[*] SUID binaries not found, exiting...\n${NC}"
+		echo -e "${YELLOW}\n[*] SUID vulnerable binaries not found, exiting...\n${NC}"
 		tput cnorm
 		exit 0
 	fi
@@ -136,16 +136,22 @@ function extract_html_info() {
 # Main function
 function main() {
 	tput civis
+	wget -q --spider http://google.com
+        
+        if [ $? -eq 0 ]; then
+	  gtfo_url="https://gtfobins.github.io"
+          suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
 	
-	gtfo_url="https://gtfobins.github.io"
-	suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-	
-	check_dependencies
-	search_binaries
-	display_menu
-	request_bin_info $gtfo_url
-	extract_html_info	
-	rm output.html 2> /dev/null
+	  check_dependencies
+	  search_binaries
+	  display_menu
+	  request_bin_info $gtfo_url
+	  extract_html_info	
+	  rm output.html 2> /dev/null
+        else
+          echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
+          tput cnorm
+        fi
 }
 
 main
