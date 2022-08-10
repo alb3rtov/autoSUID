@@ -7,6 +7,12 @@
 # can be used to escalate or mantain elevated privileges in a iteractive way.
 #
 
+# Run BLA::stop_loading_animation if the script is interrupted
+trap BLA::stop_loading_animation SIGINT
+
+# Loading animation
+BLA_classic=( 0.25 '-' "\\" '|' '/' )
+
 # Colors ANSI escape codes
 DARKGRAY='\033[1;30m'
 LIGHTRED='\033[1;31m'
@@ -23,6 +29,7 @@ declare -a exploitable_binaries
 declare -a url_exploitable_binaries
 declare -a suid_urls
 declare -i bin_index
+declare -a BLA_active_loading_animation
 
 # Catch Ctrl+C signal
 function ctrl_c() {
@@ -34,13 +41,47 @@ function ctrl_c() {
 
 trap ctrl_c INT
 
+# 
+BLA::play_loading_animation_loop() {
+  while true ; do
+    for frame in "${BLA_active_loading_animation[@]}" ; do
+      printf "\r[%s" "${frame}"
+      sleep "${BLA_loading_animation_frame_interval}"
+    done
+  done
+}
+
+# 
+BLA::start_loading_animation() {
+  BLA_active_loading_animation=( "${@}" )
+  # Extract the delay between each frame from array BLA_active_loading_animation
+  BLA_loading_animation_frame_interval="${BLA_active_loading_animation[0]}"
+  unset "BLA_active_loading_animation[0]"
+  tput civis # Hide the terminal cursor
+  BLA::play_loading_animation_loop &
+  BLA_loading_animation_pid="${!}"
+}
+
+# 
+BLA::stop_loading_animation() {
+  kill "${BLA_loading_animation_pid}" &> /dev/null
+  printf "\r[*"
+  printf "\n"
+  tput cnorm # Restore the terminal cursor
+}
+
+
 # Check if html2text is installed
 function check_dependencies() {
 	clear
 
-	echo -e "${YELLOW}\n[*] Checking for dependencies...${NC}"
-	sleep 2	
-	if test -f /usr/bin/html2text; then
+	echo -ne "${YELLOW}\n[*] Checking for dependencies..."
+	
+        BLA::start_loading_animation "${BLA_classic[@]}"
+        sleep 2	
+	BLA::stop_loading_animation
+
+        if test -f /usr/bin/html2text; then
 		echo -e "${YELLOW}\n[*] Html2text is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
 		sleep 2
 	else
@@ -53,10 +94,12 @@ function check_dependencies() {
 
 # Search and compare GTFO binaries with current SUID binaries
 function search_binaries() {
-	echo -e "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system...\n${NC}"
-
+	echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
+        
+        BLA::start_loading_animation "${BLA_classic[@]}"
 	declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
-	
+        BLA::stop_loading_animation
+        
 	for binary_url in ${suid_urls[@]}; do
 		current_binary=$(echo $binary_url | sed 's/\/#suid//' | sed 's/\/gtfobins\///')
 		
