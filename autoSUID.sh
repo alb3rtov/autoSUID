@@ -27,7 +27,10 @@ NC='\033[0m'
 # Global variables
 declare -a exploitable_binaries
 declare -a url_exploitable_binaries
+declare -a limited_exploitable_binaries
+declare -a limited_url_exploitable_binaries
 declare -a suid_urls
+declare -a limited_suid_urls
 declare -i bin_index
 declare -a BLA_active_loading_animation
 
@@ -70,6 +73,11 @@ BLA::stop_loading_animation() {
   tput cnorm # Restore the terminal cursor
 }
 
+# Press enter to continue
+function enter_press() {
+	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
+	read press_enter
+}
 
 # Check if html2text is installed
 function check_dependencies() {
@@ -113,15 +121,26 @@ function search_binaries() {
 			fi
 		done
 	done
+
+	for binary_url in ${limited_suid_urls[@]}; do
+		current_binary=$(echo $binary_url | sed 's/\/#limited-suid//' | sed 's/\/gtfobins\///')
+		
+		for binary in ${suid_binaries[@]}; do
+			if [[ $current_binary == $binary ]]; then
+				echo -e "${YELLOW}[*] Limited SUID permissions match for ${NC}${LIGHTPURPLE}$binary${NC}"
+				limited_exploitable_binaries+=($(which $binary))
+				limited_url_exploitable_binaries+=($binary_url)
+			fi
+		done
+	done
 	
-	if [[ ${#exploitable_binaries[@]} -eq 0 ]]; then
+	if [ ${#exploitable_binaries[@]} -eq 0 ] && [ ${#limited_exploitable_binaries[@]} -eq 0 ]; then
 		echo -e "${YELLOW}\n[*] SUID vulnerable binaries not found, exiting...\n${NC}"
 		tput cnorm
 		exit 0
 	fi
 
-	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
-	read press_enter
+	enter_press
 	tput cnorm
 }
 
@@ -168,17 +187,14 @@ function request_bin_info() {
 # Get description and command for SUID binary exploitation
 function extract_html_info() {
 	
-	#description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -B 50 | sed '/*/d')
 	description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
-	#commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -A 50 | sed 's/*//')
 	commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
 
 	echo -e "${YELLOW}\n[*] Description${NC}"
 	echo -e "${LIGHTBLUE}\n$description${NC}"
 	echo -e "${YELLOW}\n[*] Commands${NC}"
 	echo -e "${LIGHTPURPLE}\n$commands${NC}"
-	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
-	read press_enter
+	enter_press
 }
 
 # Main function
@@ -189,7 +205,8 @@ function main() {
     if [ $? -eq 0 ]; then
 	  	gtfo_url="https://gtfobins.github.io"
         suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-	  	check_dependencies
+		limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
+		check_dependencies
 	  	search_binaries
 	  	display_menu
 	  	request_bin_info $gtfo_url
