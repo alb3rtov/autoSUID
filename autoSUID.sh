@@ -41,7 +41,7 @@ function ctrl_c() {
 
 trap ctrl_c INT
 
-# 
+# Play loading animation
 BLA::play_loading_animation_loop() {
   while true ; do
     for frame in "${BLA_active_loading_animation[@]}" ; do
@@ -51,7 +51,7 @@ BLA::play_loading_animation_loop() {
   done
 }
 
-# 
+# Start loading animation
 BLA::start_loading_animation() {
   BLA_active_loading_animation=( "${@}" )
   # Extract the delay between each frame from array BLA_active_loading_animation
@@ -62,7 +62,7 @@ BLA::start_loading_animation() {
   BLA_loading_animation_pid="${!}"
 }
 
-# 
+# Stop loading animation
 BLA::stop_loading_animation() {
   kill "${BLA_loading_animation_pid}" &> /dev/null
   printf "\r[*"
@@ -77,11 +77,11 @@ function check_dependencies() {
 
 	echo -ne "${YELLOW}\n[*] Checking for dependencies..."
 	
-        BLA::start_loading_animation "${BLA_classic[@]}"
-        sleep 2	
+    BLA::start_loading_animation "${BLA_classic[@]}"
+    sleep 2	
 	BLA::stop_loading_animation
 
-        if test -f /usr/bin/html2text; then
+	if test -f /usr/bin/html2text; then
 		echo -e "${YELLOW}\n[*] Html2text is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
 		sleep 2
 	else
@@ -96,10 +96,12 @@ function check_dependencies() {
 function search_binaries() {
 	echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
         
-        BLA::start_loading_animation "${BLA_classic[@]}"
+    BLA::start_loading_animation "${BLA_classic[@]}"
 	declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
-        BLA::stop_loading_animation
-        
+    BLA::stop_loading_animation
+
+	echo -e ""   
+	
 	for binary_url in ${suid_urls[@]}; do
 		current_binary=$(echo $binary_url | sed 's/\/#suid//' | sed 's/\/gtfobins\///')
 		
@@ -118,7 +120,8 @@ function search_binaries() {
 		exit 0
 	fi
 
-	sleep 2
+	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
+	read press_enter
 	tput cnorm
 }
 
@@ -165,8 +168,10 @@ function request_bin_info() {
 # Get description and command for SUID binary exploitation
 function extract_html_info() {
 	
-	description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -B 50 | sed '/*/d')
-	commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -A 50 | sed 's/*//')
+	#description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -B 50 | sed '/*/d')
+	description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
+	#commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | awk '/***** SUID *****/{flag=1}/***** Sudo *****/{flag=0}flag' | tail -n +2 | grep "*" -A 50 | sed 's/*//')
+	commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
 
 	echo -e "${YELLOW}\n[*] Description${NC}"
 	echo -e "${LIGHTBLUE}\n$description${NC}"
@@ -179,22 +184,21 @@ function extract_html_info() {
 # Main function
 function main() {
 	tput civis
-	wget -q --spider http://google.com
+	wget -q --spider http://google.com # Check if there is internet connection
         
-        if [ $? -eq 0 ]; then
-	  gtfo_url="https://gtfobins.github.io"
-          suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-	
-	  check_dependencies
-	  search_binaries
-	  display_menu
-	  request_bin_info $gtfo_url
-	  extract_html_info	
-	  rm output.html 2> /dev/null
-        else
-          echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
-          tput cnorm
-        fi
+    if [ $? -eq 0 ]; then
+	  	gtfo_url="https://gtfobins.github.io"
+        suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
+	  	check_dependencies
+	  	search_binaries
+	  	display_menu
+	  	request_bin_info $gtfo_url
+	  	extract_html_info	
+	  	rm output.html 2> /dev/null
+    else
+        echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
+        tput cnorm
+    fi
 }
 
 main
