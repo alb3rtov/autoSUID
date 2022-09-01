@@ -32,6 +32,7 @@ declare -a limited_url_exploitable_binaries
 declare -a suid_urls
 declare -a limited_suid_urls
 declare -i bin_index
+declare -i selected_menu
 declare -a BLA_active_loading_animation
 
 # Catch Ctrl+C signal
@@ -75,7 +76,7 @@ BLA::stop_loading_animation() {
 
 # Press enter to continue
 function enter_press() {
-	echo -ne "${YELLOW}\nPress any key to continue...${NC}"
+	echo -ne "${YELLOW}\nPress enter to continue...${NC}"
 	read press_enter
 }
 
@@ -122,6 +123,8 @@ function search_binaries() {
 		done
 	done
 
+	echo -e ""
+	
 	for binary_url in ${limited_suid_urls[@]}; do
 		current_binary=$(echo $binary_url | sed 's/\/#limited-suid//' | sed 's/\/gtfobins\///')
 		
@@ -144,8 +147,64 @@ function search_binaries() {
 	tput cnorm
 }
 
-# Show menu with SUID binaries to select
+# Display all vulnerable binaries
 function display_menu() {
+	clear
+	echo -e "${YELLOW}\n[*] Vulnerable options\n${NC}"
+
+	declare -i index=1
+
+	if [ ${#exploitable_binaries[@]} -ne 0 ]; then
+		echo -e "${YELLOW} $index) SUID binaries${NC}"
+		let index+=1
+	fi
+
+	if [ ${#limited_exploitable_binaries[@]} -ne 0 ]; then
+		echo -e "${YELLOW} $index) Limited SUID binaries${NC}"
+		let index+=1
+	fi
+	
+	let index-=1
+	
+	while
+		echo -ne "${LIGHTBLUE}\nSelect an option (1-$index): ${NC}"
+		read user_input
+		(( $user_input < 1 || $user_input > $index ))
+	do true; done
+
+	selected_menu=$user_input
+
+	if [ $user_input -eq 1 ]; then
+		suid_binaries_menu
+	else 
+		limited_suid_binaries_menu
+	fi
+}
+
+# Show menu with limited SUID binaries to select
+function limited_suid_binaries_menu() {
+	clear
+	echo -e "${YELLOW}\n[*] Limited SUID Binaries\n${NC}"
+
+	declare -i index=1
+	for binary in ${limited_exploitable_binaries[@]}; do
+		echo -e "${YELLOW}  $index) $binary${NC}"
+		let index+=1
+	done
+
+	while
+		echo -ne "${LIGHTBLUE}\nSelect an option (1-${#limited_exploitable_binaries[@]}): ${NC}"
+		read user_input
+		(( $user_input < 1 || $user_input > ${#limited_exploitable_binaries[@]} ))
+	do true; done
+
+	let user_input-=1
+
+	bin_index=$user_input
+}
+
+# Show menu with SUID binaries to select
+function suid_binaries_menu() {
 	clear
 	echo -e "${YELLOW}\n[*] SUID Binaries\n${NC}"
 
@@ -169,9 +228,14 @@ function display_menu() {
 # Request to GTFObins info about selected SUID binary
 function request_bin_info() {
 	clear
-	
-	selected_bin=${exploitable_binaries[${bin_index}]}
-	url_selected_bin=${url_exploitable_binaries[${bin_index}]}
+	if [ $selected_menu -eq 1 ]; then
+		selected_bin=${exploitable_binaries[${bin_index}]}
+		url_selected_bin=${url_exploitable_binaries[${bin_index}]}
+	else
+		selected_bin=${limited_exploitable_binaries[${bin_index}]}
+		url_selected_bin=${limited_url_exploitable_binaries[${bin_index}]}
+	fi
+
 	url="$1$url_selected_bin"
 
 	echo -e "${YELLOW}\n[*] Searching info about $selected_bin... ${NC}"
@@ -187,9 +251,14 @@ function request_bin_info() {
 # Get description and command for SUID binary exploitation
 function extract_html_info() {
 	
-	description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
-	commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
-
+	if [ $selected_menu -eq 1 ]; then
+		description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
+		commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
+	else
+		description=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
+		commands=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d' | grep "*" -A 50 | sed 's/*//')
+	fi
+	
 	echo -e "${YELLOW}\n[*] Description${NC}"
 	echo -e "${LIGHTBLUE}\n$description${NC}"
 	echo -e "${YELLOW}\n[*] Commands${NC}"
