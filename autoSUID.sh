@@ -106,8 +106,9 @@ function search_binaries() {
 	echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
         
     BLA::start_loading_animation "${BLA_classic[@]}"
-	declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
-    BLA::stop_loading_animation
+	#declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
+    declare -a suid_binaries=$(find / -xdev -user root \( -perm -4000 -o -perm -2000 \) 2> /dev/null | grep -o '[^/]\+$')
+	BLA::stop_loading_animation
 
 	echo -e ""   
 	
