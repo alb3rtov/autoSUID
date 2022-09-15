@@ -105,9 +105,9 @@ function check_dependencies() {
 function search_binaries() {
 	echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
         
-    BLA::start_loading_animation "${BLA_classic[@]}"
+  BLA::start_loading_animation "${BLA_classic[@]}"
 	#declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
-    declare -a suid_binaries=$(find / -xdev -user root \( -perm -4000 -o -perm -2000 \) 2> /dev/null | grep -o '[^/]\+$')
+  declare -a suid_binaries=$(find / -xdev -user root \( -perm -4000 -o -perm -2000 \) 2> /dev/null | grep -o '[^/]\+$')
 	BLA::stop_loading_animation
 
 	echo -e ""   
@@ -274,17 +274,17 @@ function main() {
         
     if [ $? -eq 0 ]; then
 	  	gtfo_url="https://gtfobins.github.io"
-        suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-		limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
-		check_dependencies
+      suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
+		  limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
+		  check_dependencies
 	  	search_binaries
 	  	display_menu
 	  	request_bin_info $gtfo_url
 	  	extract_html_info	
 	  	rm output.html 2> /dev/null
     else
-        echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
-        tput cnorm
+      echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
+      tput cnorm
     fi
 }
 
