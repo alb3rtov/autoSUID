@@ -82,28 +82,28 @@ function enter_press() {
 
 # Check if html2text is installed
 function check_dependencies() {
-	clear
+  clear
 
 	echo -ne "${YELLOW}\n[*] Checking for dependencies..."
 	
-    BLA::start_loading_animation "${BLA_classic[@]}"
-    sleep 2	
+  BLA::start_loading_animation "${BLA_classic[@]}"
+  sleep 2	
 	BLA::stop_loading_animation
 
-	if test -f /usr/bin/html2text; then
+  if test -f $(which html2text); then
 		echo -e "${YELLOW}\n[*] Html2text is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
 		sleep 2
+    return 0
 	else
-		echo -e "${YELLOW}\n[*] Html2text is NOT installed on the system.\n\n  [-] Type this command to install it: ${NC}${LIGHTBLUE}apt-get install html2text.\n${NC}" 
-		sleep 2
-		tput cnorm
-		exit 0;
+		echo -e "${YELLOW}\n[*] Html2text is NOT installed on the system.\n\n [*] Some of the characters may not be displayed correctly, its recommended to install html2text ${NC}" 
+    sleep 2
+    return 1
 	fi
 }
 
 # Search and compare GTFO binaries with current SUID binaries
 function search_binaries() {
-	echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
+  echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
         
   BLA::start_loading_animation "${BLA_classic[@]}"
 	#declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
@@ -239,11 +239,11 @@ function request_bin_info() {
 
 	url="$1$url_selected_bin"
 
-	echo -e "${YELLOW}\n[*] Searching info about $selected_bin... ${NC}"
+  echo -e "${YELLOW}\n[*] Searching info about $selected_bin... ${LIGHTPURPLE} ($url) ${NC}"
 	
 	curl -s $url -X GET > output.html
 
-	if test ! -f output.html; then
+  if test ! -f output.html; then
 		echo -e "${LIGHTRED}\n[!] HTML file not found (output.html), exiting...\n${NC}"
 		exit 1
 	fi
@@ -251,15 +251,25 @@ function request_bin_info() {
 
 # Get description and command for SUID binary exploitation
 function extract_html_info() {
-	
-	if [ $selected_menu -eq 1 ]; then
-		description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
-		commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
-	else
-		description=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
-		commands=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d' | grep "*" -A 50 | sed 's/*//')
-	fi
-	
+
+  if [ $1 -eq 0 ]; then
+    if [ $selected_menu -eq 1 ]; then
+		  description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
+		  commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
+    else
+		  description=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
+		  commands=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d' | grep "*" -A 50 | sed 's/*//')
+    fi
+  else
+    if [ $selected_menu -eq 1 ]; then
+      description=$(cat output.html | grep -A 25 'id="suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
+      commands=$(cat output.html | grep -A 25 'id="suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
+    else
+      description=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
+      commands=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
+    fi
+  fi
+		
 	echo -e "${YELLOW}\n[*] Description${NC}"
 	echo -e "${LIGHTBLUE}\n$description${NC}"
 	echo -e "${YELLOW}\n[*] Commands${NC}"
@@ -272,20 +282,21 @@ function main() {
 	tput civis
 	wget -q --spider http://google.com # Check if there is internet connection
         
-    if [ $? -eq 0 ]; then
-	  	gtfo_url="https://gtfobins.github.io"
-      suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-		  limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
-		  check_dependencies
-	  	search_binaries
-	  	display_menu
-	  	request_bin_info $gtfo_url
-	  	extract_html_info	
-	  	rm output.html 2> /dev/null
-    else
-      echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
-      tput cnorm
-    fi
+  if [ $? -eq 0 ]; then
+    gtfo_url="https://gtfobins.github.io"
+    suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
+    limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
+    check_dependencies
+    mode=$?
+    search_binaries
+	  display_menu
+	  request_bin_info $gtfo_url
+	  extract_html_info	$mode
+	  rm output.html 2> /dev/null
+  else
+    echo -e "${YELLOW}\n[*] No internet connection, exiting...\n${NC}"
+    tput cnorm
+  fi
 }
 
 main
