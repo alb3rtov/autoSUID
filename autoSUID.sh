@@ -38,7 +38,7 @@ declare -a BLA_active_loading_animation
 # Catch Ctrl+C signal
 function ctrl_c() {
 	echo -e "\n${YELLOW}[*] Ctrl+C signal caught...\n${NC}"
-	rm output.html 2> /dev/null
+	rm output.html tmp.html 2> /dev/null
 	tput cnorm
 	exit 1
 }
@@ -80,7 +80,7 @@ function enter_press() {
 	read press_enter
 }
 
-# Check if html2text is installed
+# Check tools installed
 function check_dependencies() {
   clear
 
@@ -90,32 +90,36 @@ function check_dependencies() {
   sleep 2	
 	BLA::stop_loading_animation
 
+  content_retriever=""
+  mode=""
+
   if test -f $(which curl); then
-    echo -e "${YELLOW}\n[*] Curl is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
-		sleep 2
+    echo -e "${YELLOW}\n[*] Curl is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"
+		content_retriever="curl"
+    sleep 2
+  elif test -f $(which wget); then
+    echo -e "${YELLOW}\n[*] Wget is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"
+    content_retriever="wget"
+    sleep 2
   else
-    echo -e "${YELLOW}\n[*] Curl is NOT installed on the system, exiting... (${NC}${LIGHTRED}X${NC}${YELLOW})${NC}"	
+    echo -e "${YELLOW}\n[*] Curl or wget are NOT installed on the system, exiting... (${NC}${LIGHTRED}X${NC}${YELLOW})${NC}"	
 		sleep 2
-    return 255
+    tput cnorm
+    exit 1
   fi
   
   if test -f $(which html2text); then
 		echo -e "${YELLOW}\n[Optional] Html2text is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
 		sleep 2
-    return 0 
-	else
-		echo -e "${YELLOW}\n[Optional] Html2text is NOT installed on the system.\n\n [*] Some of the characters may not be displayed correctly, its recommended to install html2text ${NC}" 
-    sleep 2
-	fi
-  
-  if test -f $(which w3m); then
+    mode=0
+  elif test -f $(which w3m); then
     echo -e "${YELLOW}\n[Optional] W3m is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"	
 		sleep 2
-    return 1
+    mode=1
   else
     echo -e "${YELLOW}\n[Optional] W3m is NOT installed on the system (${NC}${LIGHTRED}X${NC}${YELLOW})${NC}"	
 		sleep 2
-    return 2
+    mode=2
   fi
 }
 
@@ -124,12 +128,12 @@ function search_binaries() {
   echo -ne "${YELLOW}\n[*] Searching for SUID vulnerable binaries in the system..."
         
   BLA::start_loading_animation "${BLA_classic[@]}"
-	#declare -a suid_binaries=$(find / -perm -4000 2> /dev/null | grep -o '[^/]\+$')
-  declare -a suid_binaries=$(find / -xdev -user root \( -perm -4000 -o -perm -2000 \) 2> /dev/null | grep -o '[^/]\+$')
 	BLA::stop_loading_animation
 
 	echo -e ""   
-	
+
+  declare -a suid_binaries=$(find / -xdev -user root \( -perm -4000 -o -perm -2000 \) 2> /dev/null | grep -o '[^/]\+$')
+
 	for binary_url in ${suid_urls[@]}; do
 		current_binary=$(echo $binary_url | sed 's/\/#suid//' | sed 's/\/gtfobins\///')
 		
@@ -249,6 +253,7 @@ function request_bin_info() {
 	clear
 
   local arg1=$1
+  local arg2=$2
 
 	if [ $selected_menu -eq 1 ]; then
 		selected_bin=${exploitable_binaries[${bin_index}]}
@@ -262,7 +267,11 @@ function request_bin_info() {
 
   echo -e "${YELLOW}\n[*] Searching info about $selected_bin... ${LIGHTPURPLE} ($url) ${NC}"
 	
-	curl -s $url -X GET > output.html
+  if [ $arg2 == "curl" ]; then
+	  curl -s $url -X GET > output.html
+  else
+    wget -q $url -O output.html
+  fi
 
   if test ! -f output.html; then
 		echo -e "${LIGHTRED}\n[!] HTML file not found (output.html), exiting...\n${NC}"
@@ -291,8 +300,8 @@ function extract_html_info() {
 
   if [ $mode -eq 0 ]; then # Html2text
     if [ $selected_menu -eq 1 ]; then
-		  description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
-		  commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//')
+		  description=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -B 50 | sed '/*/d' | sed -e 's/[ \t]*//')
+		  commands=$(html2text output.html | grep -F "***** SUID *****" -A 50 | sed -n '/^\*\*\*\*\* SUID \*\*\*\*\*$/,/^\*\*\*\*\* Sudo \*\*\*\*\*$/p' | sed '1d;$d' | grep "*" -A 50 | sed 's/*//' | sed -e 's/[ \t]*//')
     else
 		  description=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
 		  commands=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d' | grep "*" -A 50 | sed 's/*//')
@@ -332,17 +341,25 @@ function main() {
 	wget -q --spider http://google.com # Check if there is internet connection
         
   if [ $? -eq 0 ]; then
-    gtfo_url="https://gtfobins.github.io"
-    suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
-    limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
-    
+
     check_dependencies
-    mode=$?
+
+    gtfo_url="https://gtfobins.github.io"
+    
+    if [ $content_retriever == "curl" ]; then
+      suid_urls=$(curl -s $gtfo_url -X GET | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
+      limited_suid_urls=$(curl -s $gtfo_url -X GET | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
+    else
+      wget -q $gtfo_url -O tmp.html
+      suid_urls=$(cat tmp.html | grep "#suid" | sed 's/<li><a href="//' | sed 's/">SUID<\/a><\/li>//')
+      limited_suid_urls=$(cat tmp.html | grep "#limited-suid" | sed 's/<li><a href="//' | sed 's/">Limited SUID<\/a><\/li>//')
+      rm tmp.html 2> /dev/null
+    fi
     
     if [ $mode -ne 255 ]; then
       search_binaries
 	    display_menu
-	    request_bin_info $gtfo_url
+	    request_bin_info $gtfo_url $content_retriever
 	    extract_html_info	$mode
 	    rm output.html 2> /dev/null
     fi
