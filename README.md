@@ -3,17 +3,17 @@ This script allows you to find and enumerate SUID binaries and check if one of t
 
 ## Requirements
 The only tool that is mandatory is `curl` or `wget`, in order to make the GET requests to [GTFOBins](https://gtfobins.github.io/) page and get all the vulnerables SUID and limited SUID binaries.
+```bash
+$ sudo apt-get install curl
+# Or you can use wget instead of curl
+$ sudo apt-get install wget
+```
 
 ## Optional tools
 In order to parse HTML code from [GTFOBins](https://gtfobins.github.io/), the program `html2text` is used. If html2text is not installed on the system, the script will try parse HTML code with `w3m`, and if it is not installed either, the HTML information will be parsed using `sed` and `grep` and `awk` but maybe some characters will not be displayed correctly.
 
 You can install those tools with following commands:
-```ini
-# Mandatory tools
-$ sudo apt-get install curl
-# Or you can use wget instead of curl
-$ sudo apt-get install wget
-
+```bash
 # Optional tools
 $ sudo apt-get install w3m
 $ sudo apt-get install html2text
