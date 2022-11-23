@@ -108,11 +108,11 @@ function check_dependencies() {
 		exit 1
 	fi
 
-	if test -f $(which html2text); then
+	if ! test -f $(which html2text); then
 		echo -e "${YELLOW}\n[Optional] Html2text is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"
 		sleep 2
 		mode=0
-	elif test -f $(which w3m); then
+	elif ! test -f $(which w3m); then
 		echo -e "${YELLOW}\n[Optional] W3m is installed on the system (${NC}${LIGHTGREEN}V${NC}${YELLOW})${NC}"
 		sleep 2
 		mode=1
@@ -305,25 +305,18 @@ function extract_html_info() {
 			description=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d;$d' | grep "*" -B 50 | sed '/*/d')
 			commands=$(html2text output.html | grep -F "***** Limited SUID *****" -A 50 | sed '1d' | grep "*" -A 50 | sed 's/*//')
 		fi
-	elif [ $mode -eq 1 ]; then # W3m
-		if [ $selected_menu -eq 1 ]; then
-			description=$(cat output.html | grep -A 25 'id="suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
-			arg=$(cat output.html | grep -A 25 'id="suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
-			fixed_command "$arg"
-			commands=$(echo $cmd)
-		else
-			description=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
-			commands=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
-			fixed_command "$arg"
-			commands=$(echo $cmd)
-		fi
-	else # Only curl
+	else
 		if [ $selected_menu -eq 1 ]; then
 			description=$(cat output.html | grep -A 25 'id="suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
 			commands=$(cat output.html | grep -A 25 'id="suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
 		else
 			description=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<p>/,/<\/p>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
 			commands=$(cat output.html | grep -A 25 'id="limited-suid"' | awk '/<pre>/,/<\/pre>/' | sed -e 's/<[^>]*>//g' | sed -e 's/[ \t]*//')
+		fi
+
+		if [ $mode -eq 1 ]; then
+			fixed_command "$commands"
+			commands=$(echo $cmd)
 		fi
 	fi
 
